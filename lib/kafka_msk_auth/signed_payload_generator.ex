@@ -27,8 +27,8 @@ defmodule KafkaMskAuth.SignedPayloadGenerator do
   def get_signed_payload(_mechanism, host, now, config) do
     url = "kafka://" <> to_string(host) <> "?Action=kafka-cluster%3AConnect"
 
-    opts = if Keyword.has_key?(config, :security_token) do
-      [session_token: URI.encode_www_form(config.security_token), ttl: @ttl]
+    opts = if Keyword.has_key?(config, :session_token) do
+      [session_token: URI.encode_www_form(config.session_token), ttl: @ttl]
     else
       [ttl: @ttl]
     end
