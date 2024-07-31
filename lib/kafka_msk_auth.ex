@@ -5,7 +5,6 @@ defmodule KafkaMskAuth do
 
   require Logger
 
-
   def adapt_auth_config(%{access_key_id: _, secret_access_key: _} = config), do: {:ok, config}
 
   def adapt_auth_config(%{role_arn: role_arn, web_identity_token_file: token_file}) do
@@ -27,4 +26,6 @@ defmodule KafkaMskAuth do
       {:error, _} -> {:error, :unable_to_assume_role}
     end
   end
+
+  def region, do: Application.get_env(:kafka_msk_auth, :region, System.get_env("AWS_REGION"))
 end

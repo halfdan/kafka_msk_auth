@@ -5,6 +5,8 @@ defmodule KafkaMskAuth.MskIamAuth do
   """
   @behaviour :kpro_auth_backend
 
+  require Logger
+
   @kpro_lib Application.compile_env(:kafka_msk_auth, :kpro_lib, KafkaMskAuth.KafkaProtocolLib)
   @signed_payload_generator Application.compile_env(
                               :kafka_msk_auth,
@@ -14,38 +16,35 @@ defmodule KafkaMskAuth.MskIamAuth do
 
   @handshake_version 1
 
-  require Logger
-
   # The following code is based on the implmentation of SASL handshake implementation from kafka_protocol Erlang library
   # Ref: https://github.com/kafka4beam/kafka_protocol/blob/master/src/kpro_sasl.erl
   @impl true
   @spec auth(any(), port(), :gen_tcp | :ssl, binary(), :infinity | non_neg_integer(), {:AWS_MSK_IAM, map()}) ::
           :ok | {:error, any()}
   def auth(host, sock, mod, client_id, timeout, {:AWS_MSK_IAM = mechanism, config} = _sasl_opts) do
-    with {:ok, config} <- KafkaMskAuth.adapt_auth_config(config),
+    with {:ok, config} <- KafkaMskAuth.adapt_auth_config(config) do
       :ok = handshake(sock, mod, timeout, client_id, mechanism)
-      do
-        client_final_msg =
-          @signed_payload_generator.get_signed_payload(
-            mechanism,
-            host,
-            DateTime.utc_now(),
-            config
-          )
 
-        server_final_msg = send_recv(sock, mod, client_id, timeout, client_final_msg)
+      client_final_msg =
+        @signed_payload_generator.get_signed_payload(
+          mechanism,
+          host,
+          DateTime.utc_now(),
+          config
+        )
 
-        case @kpro_lib.find(:error_code, server_final_msg) do
-          :no_error -> :ok
-          other -> {:error, other}
-        end
+      server_final_msg = send_recv(sock, mod, client_id, timeout, client_final_msg)
+
+      case @kpro_lib.find(:error_code, server_final_msg) do
+        :no_error -> :ok
+        other -> {:error, other}
       end
+    end
   end
 
   def auth(_host, _sock, _mod, _client_id, _timeout, _sasl_opts) do
     {:error, "Invalid SASL mechanism"}
   end
-
 
   defp send_recv(sock, mod, client_id, timeout, payload) do
     req = @kpro_lib.make(:sasl_authenticate, _auth_req_vsn = 0, [{:auth_bytes, payload}])

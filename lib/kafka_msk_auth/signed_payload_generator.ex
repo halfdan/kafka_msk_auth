@@ -8,9 +8,7 @@ defmodule KafkaMskAuth.SignedPayloadGenerator do
 
   @callback get_signed_payload(atom(), binary(), DateTime.t(), map()) :: binary()
 
-  # TODO: Make service, region, user_agent, version and ttl runtime configurable
   @service "kafka-cluster"
-  @region Application.compile_env(:kafka_msk, :region, "us-east-2")
   @method "GET"
   @version "2020_10_22"
   @user_agent "msk-elixir-client"
@@ -27,17 +25,18 @@ defmodule KafkaMskAuth.SignedPayloadGenerator do
   def get_signed_payload(_mechanism, host, now, config) do
     url = "kafka://" <> to_string(host) <> "?Action=kafka-cluster%3AConnect"
 
-    opts = if Map.has_key?(config, :session_token) do
-      [session_token: URI.encode_www_form(config.session_token), ttl: @ttl]
-    else
-      [ttl: @ttl]
-    end
+    opts =
+      if Map.has_key?(config, :session_token) do
+        [session_token: URI.encode_www_form(config.session_token), ttl: @ttl]
+      else
+        [ttl: @ttl]
+      end
 
     aws_v4_signed_query =
       :aws_signature.sign_v4_query_params(
         config.access_key_id,
         config.secret_access_key,
-        @region,
+        KafkaMskAuth.region(),
         @service,
         # Formats to {{now.year, now.month, now.day}, {now.hour, now.minute, now.second}}
         NaiveDateTime.to_erl(now),
